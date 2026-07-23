@@ -45,7 +45,7 @@ if st.button("Analyze Fit") and uploaded_file and job_desc and api_key:
         client = genai.Client(api_key=api_key)
         with st.spinner("AI is analyzing and reasoning..."):
             response = client.models.generate_content(
-                model="gemini-1.5-pro",
+                model="gemini-1.5-flash",
                 contents=prompt,
             )
             st.success("Analysis Complete!")
