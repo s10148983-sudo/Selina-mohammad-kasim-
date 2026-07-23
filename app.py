@@ -61,7 +61,7 @@ if st.button("Analyze Fit"):
             
             with st.spinner("AI is analyzing and reasoning..."):
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash",
                     contents=prompt,
                 )
                 
