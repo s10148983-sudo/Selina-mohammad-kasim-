@@ -1,73 +1,78 @@
 import streamlit as st
-from pypdf import PdfReader
-from google import genai
+import google.generativeai as genai
+import pypdf
+import io
 
-# Page Configuration
+# 1. Page Configuration
 st.set_page_config(page_title="AI Resume Reasoning System", page_icon="🤖")
 
 st.title("🤖 AI Resume Reasoning System")
 st.write("Upload a resume and paste a job description to analyze candidate fit!")
 
-# 1. API Key Input
+# 2. API Key Input Box
 api_key = st.text_input("Enter your Gemini API Key:", type="password")
 
-# 2. Upload Resume & Job Description
-uploaded_file = st.file_uploader("Upload Resume (PDF)", type="pdf")
-job_desc = st.text_area("Paste Job Description Here", height=150)
+# 3. Resume File Uploader & Job Description Input
+uploaded_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+job_description = st.text_area("Paste Job Description Here", height=150)
 
-# 3. Process & Analyze
+# Helper function to extract text from PDF
+def extract_text_from_pdf(pdf_file):
+    pdf_reader = pypdf.PdfReader(io.BytesIO(pdf_file.read()))
+    text = ""
+    for page in pdf_reader.pages:
+        extracted = page.extract_text()
+        if extracted:
+            text += extracted + "\n"
+    return text
+
+# 4. Analyze Button Click Event
 if st.button("Analyze Fit"):
-    #Validation checks
+    # Validation checks
     if not api_key:
-        st.warning("Please enter your Gemini API Key.")
+        st.error("Please enter a valid Gemini API Key!")
     elif not uploaded_file:
-        st.warning("Please upload a PDF resume.")
-    elif not job_desc:
-        st.warning("Please paste the job description.")
+        st.error("Please upload a PDF resume!")
+    elif not job_description.strip():
+        st.error("Please enter the Job Description!")
     else:
         try:
-            # Extract text from PDF
-            reader = PdfReader(uploaded_file)
-            resume_text = ""
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    resume_text += extracted
-
-            # Check if PDF had readable text
-            if not resume_text.strip():
-                st.error("Could not extract text from this PDF. Please ensure it is not a scanned image.")
-                st.stop()
-
-            # Define AI prompt with reasoning instructions
-            prompt = f"""
-            You are an expert AI HR recruiter. Carefully analyze and evaluate this Resume against the Job Description.
-
-            JOB DESCRIPTION:
-            {job_desc}
-
-            RESUME TEXT:
-            {resume_text}
-
-            Provide a structured evaluation:
-            1. **Match Score**: Overall fit percentage (0% to 100%).
-            2. **Key Strengths**: Why the candidate is a good fit.
-            3. **Missing Skills / Gaps**: Critical missing qualifications or skills.
-            4. **Logical Reasoning**: Step-by-step reasoning explaining why this candidate is or isn't a strong match.
-            """
-
-            # Call Gemini AI Model (Using official 'gemini-2.0-flash' model)
-            client = genai.Client(api_key=api_key)
+            # Configure Gemini API dynamically with user provided key
+            genai.configure(api_key=api_key.strip())
             
-            with st.spinner("AI is analyzing and reasoning..."):
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=prompt,
-                )
-                
+            # Using latest active model: gemini-2.0-flash
+            model = genai.GenerativeModel("gemini-2.0-flash")
+
+            with st.spinner("Analyzing Candidate Fit... Please wait!"):
+                # Extract PDF text
+                resume_text = extract_text_from_pdf(uploaded_file)
+
+                # Prompt construction
+                prompt = f"""
+                You are an expert HR and Talent Acquisition Specialist.
+                Analyze the following candidate's resume against the provided Job Description.
+
+                ### Job Description:
+                {job_description}
+
+                ### Resume Content:
+                {resume_text}
+
+                ### Tasks:
+                1. Provide a Match Percentage (0% to 100%).
+                2. Key Strengths / Matching Skills.
+                3. Missing Skills / Gaps.
+                4. Final Recommendation (Shortlisted / Rejected / Needs Further Assessment).
+                """
+
+                # Call Gemini API
+                response = model.generate_content(prompt)
+
+                # Display Output
                 st.success("Analysis Complete!")
-                st.markdown("### 📊 Reasoning & Evaluation Result")
+                st.markdown("### 📊 Analysis Results")
                 st.write(response.text)
 
         except Exception as e:
             st.error(f"Error: {e}")
+            
